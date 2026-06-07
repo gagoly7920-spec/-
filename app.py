@@ -40,123 +40,127 @@ def index():
 
 # ── 엑셀 업로드 ───────────────────────────────────────────
 
-@app.route("/upload", methods=["GET", "POST"])
+@app.route("/upload", methods=["GET"])
 def upload():
-    if request.method == "GET":
-        logs = get_upload_log()
-        return render_template("upload.html", logs=logs)
+    logs = get_upload_log()
+    return render_template("upload.html", logs=logs)
 
-    files = request.files.getlist("files")
-    if not files:
-        flash("파일을 선택해주세요.", "error")
-        return redirect(url_for("upload"))
 
-    conn = None
-    results = []
+@app.route("/api/upload_single", methods=["POST"])
+def upload_single():
+    """파일 1개를 받아 처리 후 JSON 반환 (프론트에서 진행 바 제어용)"""
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"success": False, "message": "파일 없음"})
+
+    fname = f.filename
+    suffix = ".xls" if fname.endswith(".xls") else ".xlsx"
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        f.save(tmp.name)
+        tmp_path = tmp.name
+
     try:
-        import psycopg2
+        parsed = parse_excel_file(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    if parsed["error"]:
+        _log_upload(fname, False, parsed["error"])
+        return jsonify({"success": False, "message": parsed["error"], "파일명": fname})
+
+    product  = parsed["product"]
+    coverages = parsed["coverages"]
+    product_code = product["상품코드"]
+
+    try:
         from utils.db import get_conn
         conn = get_conn()
-        cur = conn.cursor()
+        cur  = conn.cursor()
 
-        for f in files:
-            if not f.filename:
-                continue
-            fname = f.filename
+        cur.execute("""
+            INSERT INTO products
+                (상품코드, 상품판매명, 상품인가명, 상품단축명, 보험종목코드,
+                 상품형태구분코드, 자동갱신가능여부, 상품최대가입연령,
+                 보험기간기본값, 진단상품여부, 적용시작일자, 적용종료일자, 파일명)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (상품코드) DO UPDATE SET
+                상품판매명      = EXCLUDED.상품판매명,
+                상품인가명      = EXCLUDED.상품인가명,
+                상품단축명      = EXCLUDED.상품단축명,
+                보험종목코드    = EXCLUDED.보험종목코드,
+                상품형태구분코드 = EXCLUDED.상품형태구분코드,
+                자동갱신가능여부 = EXCLUDED.자동갱신가능여부,
+                상품최대가입연령 = EXCLUDED.상품최대가입연령,
+                보험기간기본값  = EXCLUDED.보험기간기본값,
+                진단상품여부    = EXCLUDED.진단상품여부,
+                적용시작일자    = EXCLUDED.적용시작일자,
+                적용종료일자    = EXCLUDED.적용종료일자,
+                파일명          = EXCLUDED.파일명,
+                업로드일시      = NOW()
+        """, (
+            product_code,
+            product["상품판매명"], product["상품인가명"], product["상품단축명"],
+            product["보험종목코드"], product["상품형태구분코드"],
+            product["자동갱신가능여부"], product["상품최대가입연령"],
+            product["보험기간기본값"], product["진단상품여부"],
+            product["적용시작일자"], product["적용종료일자"], fname
+        ))
 
-            # 임시 파일에 저장 후 파싱
-            suffix = ".xls" if fname.endswith(".xls") else ".xlsx"
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-                f.save(tmp.name)
-                tmp_path = tmp.name
-
-            try:
-                parsed = parse_excel_file(tmp_path)
-            finally:
-                os.unlink(tmp_path)
-
-            if parsed["error"]:
-                cur.execute("""
-                    INSERT INTO file_upload_log (파일명, 성공여부, 오류메시지)
-                    VALUES (%s, %s, %s)
-                """, (fname, False, parsed["error"]))
-                results.append({"파일명": fname, "성공": False, "메시지": parsed["error"]})
-                continue
-
-            product = parsed["product"]
-            coverages = parsed["coverages"]
-            product_code = product["상품코드"]
-
-            # 상품 upsert
-            cur.execute("""
-                INSERT INTO products
-                    (상품코드, 상품판매명, 상품인가명, 상품단축명, 보험종목코드,
-                     상품형태구분코드, 자동갱신가능여부, 상품최대가입연령,
-                     보험기간기본값, 진단상품여부, 적용시작일자, 적용종료일자, 파일명)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (상품코드) DO UPDATE SET
-                    상품판매명      = EXCLUDED.상품판매명,
-                    상품인가명      = EXCLUDED.상품인가명,
-                    상품단축명      = EXCLUDED.상품단축명,
-                    보험종목코드    = EXCLUDED.보험종목코드,
-                    상품형태구분코드 = EXCLUDED.상품형태구분코드,
-                    자동갱신가능여부 = EXCLUDED.자동갱신가능여부,
-                    상품최대가입연령 = EXCLUDED.상품최대가입연령,
-                    보험기간기본값  = EXCLUDED.보험기간기본값,
-                    진단상품여부    = EXCLUDED.진단상품여부,
-                    적용시작일자    = EXCLUDED.적용시작일자,
-                    적용종료일자    = EXCLUDED.적용종료일자,
-                    파일명          = EXCLUDED.파일명,
-                    업로드일시      = NOW()
-            """, (
+        cur.execute("DELETE FROM coverages WHERE 상품코드 = %s", (product_code,))
+        if coverages:
+            psycopg2.extras.execute_values(cur, """
+                INSERT INTO coverages
+                    (상품코드, 담보코드, 담보대표명, 담보한글명, 담보한글단축명,
+                     담보기본특약구분코드, 가입대상여부, 가입금액필요여부,
+                     적용시작일자, 적용종료일자)
+                VALUES %s
+            """, [(
                 product_code,
-                product["상품판매명"], product["상품인가명"], product["상품단축명"],
-                product["보험종목코드"], product["상품형태구분코드"],
-                product["자동갱신가능여부"], product["상품최대가입연령"],
-                product["보험기간기본값"], product["진단상품여부"],
-                product["적용시작일자"], product["적용종료일자"], fname
-            ))
+                cov["담보코드"], cov["담보대표명"], cov["담보한글명"],
+                cov["담보한글단축명"], cov["담보기본특약구분코드"],
+                cov["가입대상여부"], cov["가입금액필요여부"],
+                cov["적용시작일자"], cov["적용종료일자"]
+            ) for cov in coverages], page_size=500)
 
-            # 기존 담보 삭제 후 재적재 (executemany로 한 번에 INSERT)
-            cur.execute("DELETE FROM coverages WHERE 상품코드 = %s", (product_code,))
-            if coverages:
-                psycopg2.extras.execute_values(cur, """
-                    INSERT INTO coverages
-                        (상품코드, 담보코드, 담보대표명, 담보한글명, 담보한글단축명,
-                         담보기본특약구분코드, 가입대상여부, 가입금액필요여부,
-                         적용시작일자, 적용종료일자)
-                    VALUES %s
-                """, [(
-                    product_code,
-                    cov["담보코드"], cov["담보대표명"], cov["담보한글명"],
-                    cov["담보한글단축명"], cov["담보기본특약구분코드"],
-                    cov["가입대상여부"], cov["가입금액필요여부"],
-                    cov["적용시작일자"], cov["적용종료일자"]
-                ) for cov in coverages], page_size=500)
-
-            cur.execute("""
-                INSERT INTO file_upload_log (파일명, 상품코드, 상품판매명, 담보수, 성공여부)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (fname, product_code, product["상품판매명"], len(coverages), True))
-
-            results.append({
-                "파일명": fname,
-                "성공": True,
-                "메시지": f"{product['상품판매명']} ({product_code}) — 담보 {len(coverages)}개"
-            })
+        cur.execute("""
+            INSERT INTO file_upload_log (파일명, 상품코드, 상품판매명, 담보수, 성공여부)
+            VALUES (%s,%s,%s,%s,%s)
+        """, (fname, product_code, product["상품판매명"], len(coverages), True))
 
         conn.commit()
+        return jsonify({
+            "success": True,
+            "파일명": fname,
+            "상품코드": product_code,
+            "상품판매명": product["상품판매명"],
+            "담보수": len(coverages),
+            "message": f"{product['상품판매명']} — 담보 {len(coverages)}개"
+        })
 
     except Exception as e:
-        if conn:
-            conn.rollback()
-        flash(f"업로드 중 오류: {e}", "error")
-        return redirect(url_for("upload"))
+        if conn: conn.rollback()
+        _log_upload(fname, False, str(e))
+        return jsonify({"success": False, "message": str(e), "파일명": fname})
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-    return render_template("upload_result.html", results=results)
+
+def _log_upload(fname, success, error_msg=None):
+    try:
+        from utils.db import get_conn
+        conn = get_conn()
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO file_upload_log (파일명, 성공여부, 오류메시지)
+            VALUES (%s,%s,%s)
+        """, (fname, success, error_msg))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
 
 
 # ── 상품 목록/검색 ────────────────────────────────────────

@@ -5,27 +5,47 @@
 <h2>엑셀 파일 업로드</h2>
 
 <div class="card">
-  <form method="POST" enctype="multipart/form-data">
+  <!-- 파일 선택 영역 -->
+  <div id="selectArea">
     <div class="upload-area" id="uploadArea">
       <p>📂 여기에 파일을 끌어다 놓거나 클릭해서 선택하세요</p>
       <p class="hint">.xls / .xlsx 파일, 여러 파일 동시 선택 가능</p>
       <input type="file" name="files" id="fileInput" multiple accept=".xls,.xlsx" style="display:none">
     </div>
     <div id="fileList" class="file-list"></div>
-    <button type="submit" class="btn btn-primary">업로드 시작</button>
-  </form>
+    <button id="startBtn" class="btn btn-primary" style="display:none" onclick="startUpload()">업로드 시작</button>
+  </div>
+
+  <!-- 업로드 진행 영역 (업로드 중에만 표시) -->
+  <div id="progressArea" style="display:none">
+    <div class="progress-header">
+      <span id="progressLabel">준비 중...</span>
+      <span id="progressCount" class="progress-count"></span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div id="currentFile" class="current-file"></div>
+
+    <!-- 실시간 결과 목록 -->
+    <div id="resultList" class="result-list"></div>
+  </div>
+
+  <!-- 완료 영역 -->
+  <div id="doneArea" style="display:none">
+    <div class="done-banner">✅ 업로드 완료!</div>
+    <div id="summary" class="summary-text"></div>
+    <button class="btn btn-secondary" onclick="resetUpload()" style="margin-top:1rem">추가 업로드</button>
+    <a href="/products" class="btn btn-primary" style="margin-top:1rem">상품 목록 보기</a>
+  </div>
 </div>
 
+<!-- 업로드 이력 -->
 <h3 style="margin-top:2rem">업로드 이력</h3>
 <table class="table">
   <thead>
     <tr>
-      <th>업로드 일시</th>
-      <th>파일명</th>
-      <th>상품코드</th>
-      <th>상품명</th>
-      <th>담보 수</th>
-      <th>결과</th>
+      <th>업로드 일시</th><th>파일명</th><th>상품코드</th><th>상품명</th><th>담보 수</th><th>결과</th>
     </tr>
   </thead>
   <tbody>
@@ -41,7 +61,7 @@
           <span class="badge badge-success">성공</span>
         {% else %}
           <span class="badge badge-error">실패</span>
-          <br><small>{{ log.오류메시지 or '' }}</small>
+          <small>{{ log.오류메시지 or '' }}</small>
         {% endif %}
       </td>
     </tr>
@@ -51,10 +71,69 @@
   </tbody>
 </table>
 
+<style>
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .5rem;
+  font-weight: 600;
+}
+.progress-count { color: #555; font-size: .9rem; }
+.progress-bar-bg {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 20px;
+  overflow: hidden;
+  margin-bottom: .75rem;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1a3a6b, #4a7fcb);
+  border-radius: 999px;
+  width: 0%;
+  transition: width .4s ease;
+}
+.current-file {
+  font-size: .85rem;
+  color: #555;
+  margin-bottom: 1rem;
+  min-height: 1.2em;
+}
+.result-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #edf2f7;
+  border-radius: 6px;
+}
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .45rem .75rem;
+  font-size: .85rem;
+  border-bottom: 1px solid #f0f4fa;
+}
+.result-item:last-child { border-bottom: none; }
+.result-icon { font-size: 1rem; flex-shrink: 0; }
+.result-name { flex: 1; color: #333; }
+.result-msg  { color: #888; font-size: .8rem; }
+.done-banner {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #276749;
+  margin-bottom: .5rem;
+}
+.summary-text { color: #555; font-size: .9rem; }
+</style>
+
 <script>
-const area = document.getElementById('uploadArea');
-const input = document.getElementById('fileInput');
-const list = document.getElementById('fileList');
+const area    = document.getElementById('uploadArea');
+const input   = document.getElementById('fileInput');
+const fileList= document.getElementById('fileList');
+const startBtn= document.getElementById('startBtn');
+
+let selectedFiles = [];
 
 area.addEventListener('click', () => input.click());
 area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag-over'); });
@@ -62,15 +141,94 @@ area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
 area.addEventListener('drop', e => {
   e.preventDefault();
   area.classList.remove('drag-over');
-  input.files = e.dataTransfer.files;
-  showFiles(input.files);
+  setFiles(Array.from(e.dataTransfer.files));
 });
-input.addEventListener('change', () => showFiles(input.files));
+input.addEventListener('change', () => setFiles(Array.from(input.files)));
 
-function showFiles(files) {
-  list.innerHTML = Array.from(files).map(f =>
-    `<div class="file-item">📄 ${f.name}</div>`
-  ).join('');
+function setFiles(files) {
+  selectedFiles = files.filter(f => f.name.endsWith('.xls') || f.name.endsWith('.xlsx'));
+  fileList.innerHTML = selectedFiles.length === 0
+    ? '<p class="hint">선택된 파일이 없습니다</p>'
+    : `<p class="hint" style="margin:.5rem 0"><strong>${selectedFiles.length}개</strong> 파일 선택됨</p>`
+      + selectedFiles.map(f => `<div class="file-item">📄 ${f.name}</div>`).join('');
+  startBtn.style.display = selectedFiles.length > 0 ? '' : 'none';
+}
+
+async function startUpload() {
+  if (selectedFiles.length === 0) return;
+
+  document.getElementById('selectArea').style.display = 'none';
+  document.getElementById('progressArea').style.display = '';
+
+  const total = selectedFiles.length;
+  let success = 0, fail = 0;
+
+  for (let i = 0; i < total; i++) {
+    const f = selectedFiles[i];
+    const pct = Math.round((i / total) * 100);
+
+    document.getElementById('progressFill').style.width  = pct + '%';
+    document.getElementById('progressLabel').textContent  = `업로드 중...`;
+    document.getElementById('progressCount').textContent = `${i + 1} / ${total}`;
+    document.getElementById('currentFile').textContent   = `처리 중: ${f.name}`;
+
+    const fd = new FormData();
+    fd.append('file', f);
+
+    try {
+      const res  = await fetch('/api/upload_single', { method: 'POST', body: fd });
+      const data = await res.json();
+
+      if (data.success) {
+        success++;
+        addResultItem('✅', f.name, data.message, true);
+      } else {
+        fail++;
+        addResultItem('❌', f.name, data.message, false);
+      }
+    } catch (e) {
+      fail++;
+      addResultItem('❌', f.name, '네트워크 오류', false);
+    }
+  }
+
+  // 완료
+  document.getElementById('progressFill').style.width  = '100%';
+  document.getElementById('progressLabel').textContent  = '완료!';
+  document.getElementById('progressCount').textContent = `${total} / ${total}`;
+  document.getElementById('currentFile').textContent   = '';
+
+  setTimeout(() => {
+    document.getElementById('progressArea').style.display = 'none';
+    document.getElementById('doneArea').style.display = '';
+    document.getElementById('summary').textContent =
+      `총 ${total}개 중 성공 ${success}개, 실패 ${fail}개`;
+  }, 600);
+}
+
+function addResultItem(icon, name, msg, ok) {
+  const div = document.createElement('div');
+  div.className = 'result-item';
+  div.innerHTML = `
+    <span class="result-icon">${icon}</span>
+    <span class="result-name">${name}</span>
+    <span class="result-msg">${msg || ''}</span>
+  `;
+  const list = document.getElementById('resultList');
+  list.appendChild(div);
+  list.scrollTop = list.scrollHeight;
+}
+
+function resetUpload() {
+  selectedFiles = [];
+  input.value = '';
+  fileList.innerHTML = '';
+  startBtn.style.display = 'none';
+  document.getElementById('resultList').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('doneArea').style.display    = 'none';
+  document.getElementById('progressArea').style.display= 'none';
+  document.getElementById('selectArea').style.display  = '';
 }
 </script>
 {% endblock %}
