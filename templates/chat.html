@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}AI 챗봇{% endblock %}
+
+{% block content %}
+<h2>AI 챗봇</h2>
+<p class="hint">상품·담보 정보에 대해 자연어로 질문하세요.</p>
+
+<div class="chat-container">
+  <div class="chat-messages" id="messages">
+    <div class="msg msg-bot">
+      안녕하세요! 보험 상품 관련 궁금한 점을 질문해주세요.<br>
+      예: <em>"100세암 상품의 주요 담보를 알려줘"</em>,
+      <em>"갱신형 상품은 어떤 것들이 있어?"</em>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <textarea id="questionInput" class="chat-input" placeholder="질문을 입력하세요 (Enter로 전송, Shift+Enter로 줄바꿈)" rows="2"></textarea>
+    <button class="btn btn-primary" onclick="sendMessage()">전송</button>
+  </div>
+</div>
+
+<script>
+const messages = document.getElementById('messages');
+const input = document.getElementById('questionInput');
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function sendMessage() {
+  const q = input.value.trim();
+  if (!q) return;
+
+  appendMsg(q, 'user');
+  input.value = '';
+
+  const thinking = appendMsg('생각 중...', 'bot');
+
+  fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: q })
+  })
+  .then(r => r.json())
+  .then(data => {
+    thinking.remove();
+    appendMsg(data.answer, 'bot');
+    messages.scrollTop = messages.scrollHeight;
+  })
+  .catch(() => {
+    thinking.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+  });
+}
+
+function appendMsg(text, role) {
+  const div = document.createElement('div');
+  div.className = `msg msg-${role}`;
+  div.textContent = text;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+  return div;
+}
+</script>
+{% endblock %}

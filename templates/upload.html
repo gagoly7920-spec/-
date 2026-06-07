@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}엑셀 업로드{% endblock %}
+
+{% block content %}
+<h2>엑셀 파일 업로드</h2>
+
+<div class="card">
+  <form method="POST" enctype="multipart/form-data">
+    <div class="upload-area" id="uploadArea">
+      <p>📂 여기에 파일을 끌어다 놓거나 클릭해서 선택하세요</p>
+      <p class="hint">.xls / .xlsx 파일, 여러 파일 동시 선택 가능</p>
+      <input type="file" name="files" id="fileInput" multiple accept=".xls,.xlsx" style="display:none">
+    </div>
+    <div id="fileList" class="file-list"></div>
+    <button type="submit" class="btn btn-primary">업로드 시작</button>
+  </form>
+</div>
+
+<h3 style="margin-top:2rem">업로드 이력</h3>
+<table class="table">
+  <thead>
+    <tr>
+      <th>업로드 일시</th>
+      <th>파일명</th>
+      <th>상품코드</th>
+      <th>상품명</th>
+      <th>담보 수</th>
+      <th>결과</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+    <tr>
+      <td>{{ log.업로드일시.strftime('%Y-%m-%d %H:%M') if log.업로드일시 else '' }}</td>
+      <td>{{ log.파일명 }}</td>
+      <td>{{ log.상품코드 or '' }}</td>
+      <td>{{ log.상품판매명 or '' }}</td>
+      <td>{{ log.담보수 or '' }}</td>
+      <td>
+        {% if log.성공여부 %}
+          <span class="badge badge-success">성공</span>
+        {% else %}
+          <span class="badge badge-error">실패</span>
+          <br><small>{{ log.오류메시지 or '' }}</small>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="text-center">업로드 이력이 없습니다</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+const area = document.getElementById('uploadArea');
+const input = document.getElementById('fileInput');
+const list = document.getElementById('fileList');
+
+area.addEventListener('click', () => input.click());
+area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag-over'); });
+area.addEventListener('dragleave', () => area.classList.remove('drag-over'));
+area.addEventListener('drop', e => {
+  e.preventDefault();
+  area.classList.remove('drag-over');
+  input.files = e.dataTransfer.files;
+  showFiles(input.files);
+});
+input.addEventListener('change', () => showFiles(input.files));
+
+function showFiles(files) {
+  list.innerHTML = Array.from(files).map(f =>
+    `<div class="file-item">📄 ${f.name}</div>`
+  ).join('');
+}
+</script>
+{% endblock %}

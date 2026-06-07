@@ -1,0 +1,233 @@
+import os
+import tempfile
+from flask import Flask, request, render_template, redirect, url_for, jsonify, flash
+from dotenv import load_dotenv
+
+from utils.db import (
+    init_db, search_products, get_product, get_coverages,
+    get_all_products, get_upload_log, search_for_chat, compare_coverages
+)
+from utils.excel_parser import parse_excel_file
+from utils.gemini_chat import ask, build_context
+
+import psycopg2
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-prod")
+
+# ── 초기화 ────────────────────────────────────────────────
+
+@app.before_request
+def ensure_db():
+    """최초 요청 시 테이블 생성"""
+    if not getattr(app, "_db_initialized", False):
+        try:
+            init_db()
+            app._db_initialized = True
+        except Exception as e:
+            print(f"DB 초기화 오류: {e}")
+
+
+# ── 메인 ──────────────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+# ── 엑셀 업로드 ───────────────────────────────────────────
+
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    if request.method == "GET":
+        logs = get_upload_log()
+        return render_template("upload.html", logs=logs)
+
+    files = request.files.getlist("files")
+    if not files:
+        flash("파일을 선택해주세요.", "error")
+        return redirect(url_for("upload"))
+
+    conn = None
+    results = []
+    try:
+        import psycopg2
+        from utils.db import get_conn
+        conn = get_conn()
+        cur = conn.cursor()
+
+        for f in files:
+            if not f.filename:
+                continue
+            fname = f.filename
+
+            # 임시 파일에 저장 후 파싱
+            suffix = ".xls" if fname.endswith(".xls") else ".xlsx"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                f.save(tmp.name)
+                tmp_path = tmp.name
+
+            try:
+                parsed = parse_excel_file(tmp_path)
+            finally:
+                os.unlink(tmp_path)
+
+            if parsed["error"]:
+                cur.execute("""
+                    INSERT INTO file_upload_log (파일명, 성공여부, 오류메시지)
+                    VALUES (%s, %s, %s)
+                """, (fname, False, parsed["error"]))
+                results.append({"파일명": fname, "성공": False, "메시지": parsed["error"]})
+                continue
+
+            product = parsed["product"]
+            coverages = parsed["coverages"]
+            product_code = product["상품코드"]
+
+            # 상품 upsert
+            cur.execute("""
+                INSERT INTO products
+                    (상품코드, 상품판매명, 상품인가명, 상품단축명, 보험종목코드,
+                     상품형태구분코드, 자동갱신가능여부, 상품최대가입연령,
+                     보험기간기본값, 진단상품여부, 적용시작일자, 적용종료일자, 파일명)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (상품코드) DO UPDATE SET
+                    상품판매명      = EXCLUDED.상품판매명,
+                    상품인가명      = EXCLUDED.상품인가명,
+                    상품단축명      = EXCLUDED.상품단축명,
+                    보험종목코드    = EXCLUDED.보험종목코드,
+                    상품형태구분코드 = EXCLUDED.상품형태구분코드,
+                    자동갱신가능여부 = EXCLUDED.자동갱신가능여부,
+                    상품최대가입연령 = EXCLUDED.상품최대가입연령,
+                    보험기간기본값  = EXCLUDED.보험기간기본값,
+                    진단상품여부    = EXCLUDED.진단상품여부,
+                    적용시작일자    = EXCLUDED.적용시작일자,
+                    적용종료일자    = EXCLUDED.적용종료일자,
+                    파일명          = EXCLUDED.파일명,
+                    업로드일시      = NOW()
+            """, (
+                product_code,
+                product["상품판매명"], product["상품인가명"], product["상품단축명"],
+                product["보험종목코드"], product["상품형태구분코드"],
+                product["자동갱신가능여부"], product["상품최대가입연령"],
+                product["보험기간기본값"], product["진단상품여부"],
+                product["적용시작일자"], product["적용종료일자"], fname
+            ))
+
+            # 기존 담보 삭제 후 재적재
+            cur.execute("DELETE FROM coverages WHERE 상품코드 = %s", (product_code,))
+            for cov in coverages:
+                cur.execute("""
+                    INSERT INTO coverages
+                        (상품코드, 담보코드, 담보대표명, 담보한글명, 담보한글단축명,
+                         담보기본특약구분코드, 가입대상여부, 가입금액필요여부,
+                         적용시작일자, 적용종료일자)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    product_code,
+                    cov["담보코드"], cov["담보대표명"], cov["담보한글명"],
+                    cov["담보한글단축명"], cov["담보기본특약구분코드"],
+                    cov["가입대상여부"], cov["가입금액필요여부"],
+                    cov["적용시작일자"], cov["적용종료일자"]
+                ))
+
+            cur.execute("""
+                INSERT INTO file_upload_log (파일명, 상품코드, 상품판매명, 담보수, 성공여부)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (fname, product_code, product["상품판매명"], len(coverages), True))
+
+            results.append({
+                "파일명": fname,
+                "성공": True,
+                "메시지": f"{product['상품판매명']} ({product_code}) — 담보 {len(coverages)}개"
+            })
+
+        conn.commit()
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        flash(f"업로드 중 오류: {e}", "error")
+        return redirect(url_for("upload"))
+    finally:
+        if conn:
+            conn.close()
+
+    return render_template("upload_result.html", results=results)
+
+
+# ── 상품 목록/검색 ────────────────────────────────────────
+
+@app.route("/products")
+def products():
+    keyword = request.args.get("q", "").strip()
+    if keyword:
+        items = search_products(keyword)
+    else:
+        items = get_all_products()
+    return render_template("products.html", items=items, keyword=keyword)
+
+
+@app.route("/products/<product_code>")
+def product_detail(product_code):
+    product = get_product(product_code)
+    if not product:
+        flash("해당 상품을 찾을 수 없습니다.", "error")
+        return redirect(url_for("products"))
+    coverages = get_coverages(product_code)
+    return render_template("product_detail.html", product=product, coverages=coverages)
+
+
+# ── 정합성 비교 ───────────────────────────────────────────
+
+@app.route("/compare")
+def compare():
+    all_products = get_all_products()
+    return render_template("compare.html", all_products=all_products)
+
+
+@app.route("/api/compare")
+def api_compare():
+    code_a = request.args.get("a", "")
+    code_b = request.args.get("b", "")
+    if not code_a or not code_b:
+        return jsonify({"error": "상품코드 두 개가 필요합니다"}), 400
+    result = compare_coverages(code_a, code_b)
+    prod_a = get_product(code_a)
+    prod_b = get_product(code_b)
+    return jsonify({
+        "product_a": {"코드": code_a, "명": prod_a["상품판매명"] if prod_a else ""},
+        "product_b": {"코드": code_b, "명": prod_b["상품판매명"] if prod_b else ""},
+        "only_a": result["only_a"],
+        "only_b": result["only_b"],
+        "common_count": len(result["common"]),
+    })
+
+
+# ── 챗봇 ──────────────────────────────────────────────────
+
+@app.route("/chat")
+def chat():
+    return render_template("chat.html")
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    data = request.get_json()
+    question = (data or {}).get("question", "").strip()
+    if not question:
+        return jsonify({"answer": "질문을 입력해주세요."}), 400
+
+    # 키워드 추출 (간단히 질문 전체를 검색어로 사용)
+    keyword = question
+    search_result = search_for_chat(keyword)
+    context_text = build_context(search_result)
+    answer = ask(question, context_text)
+
+    return jsonify({"answer": answer, "context": context_text})
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

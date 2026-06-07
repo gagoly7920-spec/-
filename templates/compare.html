@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}정합성 비교{% endblock %}
+
+{% block content %}
+<h2>담보 정합성 비교</h2>
+<p class="hint">두 상품을 선택하면 담보 구성의 차이를 자동으로 분석합니다.</p>
+
+<div class="card">
+  <div class="compare-selectors">
+    <div>
+      <label>상품 A</label>
+      <select id="selectA" class="select">
+        <option value="">— 선택 —</option>
+        {% for p in all_products %}
+        <option value="{{ p.상품코드 }}" {% if request.args.get('a') == p.상품코드 %}selected{% endif %}>
+          {{ p.상품코드 }} | {{ p.상품판매명 }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="vs-badge">VS</div>
+    <div>
+      <label>상품 B</label>
+      <select id="selectB" class="select">
+        <option value="">— 선택 —</option>
+        {% for p in all_products %}
+        <option value="{{ p.상품코드 }}">
+          {{ p.상품코드 }} | {{ p.상품판매명 }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="runCompare()" style="margin-top:1rem">비교 시작</button>
+</div>
+
+<div id="result" style="display:none; margin-top:1.5rem">
+  <div class="compare-grid">
+    <div class="card">
+      <h3 id="titleA"></h3>
+      <p class="badge badge-error" id="onlyACount"></p>
+      <table class="table" id="tableA">
+        <thead><tr><th>구분</th><th>담보코드</th><th>담보명</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3 id="titleB"></h3>
+      <p class="badge badge-error" id="onlyBCount"></p>
+      <table class="table" id="tableB">
+        <thead><tr><th>구분</th><th>담보코드</th><th>담보명</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <p id="commonCount" class="text-center"></p>
+  </div>
+</div>
+
+<script>
+function runCompare() {
+  const a = document.getElementById('selectA').value;
+  const b = document.getElementById('selectB').value;
+  if (!a || !b) { alert('상품 A와 B를 모두 선택해주세요.'); return; }
+  if (a === b) { alert('서로 다른 상품을 선택해주세요.'); return; }
+
+  fetch(`/api/compare?a=${a}&b=${b}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('result').style.display = '';
+      document.getElementById('titleA').textContent = `A에만 있는 담보 (${data.product_a.명})`;
+      document.getElementById('titleB').textContent = `B에만 있는 담보 (${data.product_b.명})`;
+      document.getElementById('onlyACount').textContent = `${data.only_a.length}개`;
+      document.getElementById('onlyBCount').textContent = `${data.only_b.length}개`;
+      document.getElementById('commonCount').textContent =
+        `공통 담보: ${data.common_count}개`;
+
+      fillTable('tableA', data.only_a);
+      fillTable('tableB', data.only_b);
+    });
+}
+
+function fillTable(tableId, rows) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = rows.length === 0
+    ? '<tr><td colspan="3" class="text-center">없음</td></tr>'
+    : rows.map(r => `<tr>
+        <td>${r.담보기본특약구분코드 === '01' ? '<span class="badge badge-blue">기본</span>' : '<span class="badge badge-gray">특약</span>'}</td>
+        <td><code>${r.담보코드}</code></td>
+        <td>${r.담보대표명 || ''}</td>
+      </tr>`).join('');
+}
+</script>
+{% endblock %}

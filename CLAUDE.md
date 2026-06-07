@@ -38,21 +38,20 @@
 
 ## 데이터 구조
 
-### 엑셀 파일 구조
-- 수십 개의 엑셀 파일로 구성
-- 모든 파일은 **상품코드** 컬럼으로 연결 (공통 기본키)
-- 주요 데이터:
-  - 상품 기본속성 (보험료 산출 관련 항목들)
-  - 담보코드 (상품당 수백 개)
-  - 담보 보장내용
-  - 담보 속성 (담보당 수십 개 컬럼)
+### 엑셀 파일 구조 (분석 완료)
+- 파일당 상품코드 1개, 23개 파일 = 23개 상품 (단, 동일 상품 다른 종 포함)
+- 모든 파일은 **55개 시트** 동일 구조
+- **파싱 핵심**: `header=23`, DATA 레이블 행부터 시작, 이후 NaN 행도 유효 데이터
+- 주요 시트:
+  - `상품` : 113개 컬럼, 상품 기본속성
+  - `상품담보` : 77개 컬럼, 담보 목록 (상품당 30~2,284개)
+- 상품코드 형태: `LA02944001` (보종군코드 2자리 + 상품번호 5자리 + 종코드 3자리)
+- `자동갱신가능여부` 값: '1'(갱신) / '0'(비갱신)
+- `담보기본특약구분코드` 값: '01'(기본) / '02'(특약) / '03'(특별약관)
 
-### DB 테이블 구조 (엑셀 분석 후 확정)
-- `products` : 상품 기본 정보 (상품코드 PK)
-- `product_attributes` : 상품 기본속성
-- `coverages` : 담보 정보 (담보코드)
-- `coverage_details` : 담보 보장내용
-- `coverage_attributes` : 담보 속성
+### DB 테이블 구조 (확정)
+- `products` : 상품 기본 정보 (상품코드 PK, 13개 주요 컬럼)
+- `coverages` : 담보 정보 (상품코드 FK, 10개 컬럼, 인덱스 있음)
 - `file_upload_log` : 업로드 이력 관리
 
 ## 개발 원칙
@@ -70,35 +69,40 @@
 
 ## 프로젝트 구조
 ```
-보험상품관리앱/
+바이브코딩_도전/
 ├── CLAUDE.md
-├── app.py                  # Flask 메인 앱
-├── requirements.txt        # 패키지 목록
+├── app.py                  # Flask 메인 앱 (라우팅 전체)
+├── requirements.txt
 ├── render.yaml             # Render 배포 설정
 ├── .env                    # 환경변수 (로컬용, Git 제외)
 ├── .gitignore
 ├── templates/
-│   ├── index.html          # 메인 페이지
-│   ├── upload.html         # 엑셀 업로드 페이지
+│   ├── base.html           # 공통 레이아웃 (navbar)
+│   ├── index.html          # 홈 (카드 4개)
+│   ├── upload.html         # 엑셀 업로드 + 이력 테이블
+│   ├── upload_result.html  # 업로드 결과
 │   ├── products.html       # 상품 목록/검색
-│   ├── product_detail.html # 상품 상세
-│   └── chat.html           # 챗봇 페이지
+│   ├── product_detail.html # 상품 상세 + 담보 필터
+│   ├── compare.html        # 정합성 비교 (두 상품 담보 비교)
+│   └── chat.html           # AI 챗봇
 ├── static/
-│   ├── style.css
-│   └── script.js
+│   └── style.css
 └── utils/
-    ├── db.py               # DB 연결 및 쿼리
-    ├── excel_parser.py     # 엑셀 파싱 로직
+    ├── __init__.py
+    ├── db.py               # DB 연결·쿼리·정합성 비교
+    ├── excel_parser.py     # 엑셀 파싱 (header=23 기준)
     └── gemini_chat.py      # Gemini API 연동
 ```
 
 ## 작업 진행 상황
 - [x] 프로젝트 기획 확정
 - [x] CLAUDE.md 작성
-- [ ] 엑셀 파일 구조 분석 및 DB 스키마 확정
-- [ ] 개발 환경 세팅
-- [ ] 백엔드 개발
-- [ ] 프론트엔드 개발
-- [ ] Gemini 챗봇 연동
+- [x] 엑셀 파일 구조 분석 및 DB 스키마 확정
+- [x] 개발 환경 세팅 (requirements.txt, .gitignore, render.yaml)
+- [x] 백엔드 개발 (app.py, utils/)
+- [x] 프론트엔드 개발 (templates, style.css)
+- [x] Gemini 챗봇 연동 (gemini_chat.py)
+- [x] 정합성 비교 기능 개발 (compare.html, /api/compare)
+- [ ] Render DB 연결 및 환경변수 설정
 - [ ] Render 배포
 - [ ] 테스트 및 최종 점검

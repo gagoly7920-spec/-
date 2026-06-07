@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ product.상품판매명 }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem">
+  <a href="/products" class="btn btn-secondary">← 목록</a>
+  <h2 style="margin:0">{{ product.상품판매명 }}</h2>
+</div>
+
+<!-- 상품 기본 정보 -->
+<div class="card">
+  <h3>기본 정보</h3>
+  <dl class="info-grid">
+    <dt>상품코드</dt>     <dd><code>{{ product.상품코드 }}</code></dd>
+    <dt>인가명</dt>       <dd>{{ product.상품인가명 or '—' }}</dd>
+    <dt>단축명</dt>       <dd>{{ product.상품단축명 or '—' }}</dd>
+    <dt>보험종목</dt>     <dd>{{ product.보험종목코드 }}</dd>
+    <dt>상품형태</dt>     <dd>{{ '복합' if product.상품형태구분코드 == '02' else '단일' }}</dd>
+    <dt>자동갱신</dt>     <dd>{{ '가능' if product.자동갱신가능여부 == 'Y' else '불가' }}</dd>
+    <dt>최대 가입 연령</dt><dd>{{ product.상품최대가입연령 or '—' }}세</dd>
+    <dt>기본 보험기간</dt> <dd>{{ product.보험기간기본값 or '—' }}</dd>
+    <dt>진단 상품</dt>    <dd>{{ '예' if product.진단상품여부 == 'Y' else '아니오' }}</dd>
+    <dt>적용 기간</dt>    <dd>{{ product.적용시작일자 }} ~ {{ product.적용종료일자 }}</dd>
+  </dl>
+  <div style="margin-top:1rem; display:flex; gap:0.75rem">
+    <a href="/compare?a={{ product.상품코드 }}" class="btn btn-secondary">타 상품과 담보 비교</a>
+  </div>
+</div>
+
+<!-- 담보 목록 -->
+<div class="card" style="margin-top:1.5rem">
+  <div style="display:flex; justify-content:space-between; align-items:center">
+    <h3>담보 목록 ({{ coverages|length }}개)</h3>
+    <div class="filter-btns">
+      <button class="btn btn-sm active" onclick="filterCov('all', this)">전체</button>
+      <button class="btn btn-sm" onclick="filterCov('01', this)">기본담보</button>
+      <button class="btn btn-sm" onclick="filterCov('02', this)">특약</button>
+    </div>
+  </div>
+
+  <table class="table" id="covTable">
+    <thead>
+      <tr>
+        <th>구분</th>
+        <th>담보코드</th>
+        <th>담보명</th>
+        <th>단축명</th>
+        <th>가입대상</th>
+        <th>가입금액</th>
+        <th>적용기간</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cov in coverages %}
+      <tr data-type="{{ cov.담보기본특약구분코드 }}">
+        <td>
+          {% if cov.담보기본특약구분코드 == '01' %}
+            <span class="badge badge-blue">기본</span>
+          {% else %}
+            <span class="badge badge-gray">특약</span>
+          {% endif %}
+        </td>
+        <td><code>{{ cov.담보코드 }}</code></td>
+        <td>{{ cov.담보대표명 or cov.담보한글명 }}</td>
+        <td>{{ cov.담보한글단축명 or '—' }}</td>
+        <td>{{ '○' if cov.가입대상여부 == 'Y' else '—' }}</td>
+        <td>{{ '필요' if cov.가입금액필요여부 == 'Y' else '—' }}</td>
+        <td>{{ cov.적용시작일자 }}~{{ cov.적용종료일자 }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center">담보 정보가 없습니다</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+function filterCov(type, btn) {
+  document.querySelectorAll('.filter-btns .btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#covTable tbody tr').forEach(tr => {
+    tr.style.display = (type === 'all' || tr.dataset.type === type) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

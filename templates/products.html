@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}상품 목록{% endblock %}
+
+{% block content %}
+<h2>상품 목록</h2>
+
+<form method="GET" class="search-form">
+  <input type="text" name="q" value="{{ keyword }}" placeholder="상품코드 또는 상품명 입력" class="search-input">
+  <button type="submit" class="btn btn-primary">검색</button>
+  {% if keyword %}
+  <a href="/products" class="btn btn-secondary">전체 보기</a>
+  {% endif %}
+</form>
+
+{% if keyword %}
+<p class="result-count">검색어 "{{ keyword }}" — {{ items|length }}건</p>
+{% endif %}
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>상품코드</th>
+      <th>상품명</th>
+      <th>종목</th>
+      <th>갱신</th>
+      <th>적용기간</th>
+      <th>담보 수</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td><code>{{ item.상품코드 }}</code></td>
+      <td>{{ item.상품판매명 }}</td>
+      <td>{{ item.보험종목코드 }}</td>
+      <td>{{ '갱신' if item.자동갱신가능여부 == 'Y' else '비갱신' }}</td>
+      <td>{{ item.적용시작일자 }} ~ {{ item.적용종료일자 }}</td>
+      <td>{{ item.담보수 if item.담보수 is defined else '' }}</td>
+      <td><a href="/products/{{ item.상품코드 }}" class="btn btn-sm">상세</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center">
+      {% if keyword %}검색 결과가 없습니다{% else %}업로드된 상품이 없습니다{% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
