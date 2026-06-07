@@ -82,8 +82,9 @@ def upload_single():
             INSERT INTO products
                 (상품코드, 상품판매명, 상품인가명, 상품단축명, 보험종목코드,
                  상품형태구분코드, 자동갱신가능여부, 상품최대가입연령,
-                 보험기간기본값, 진단상품여부, 적용시작일자, 적용종료일자, 파일명)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 보험기간기본값, 진단상품여부, 적용시작일자, 적용종료일자,
+                 판매시작일자, 판매종료일자, 파일명)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (상품코드) DO UPDATE SET
                 상품판매명      = EXCLUDED.상품판매명,
                 상품인가명      = EXCLUDED.상품인가명,
@@ -96,6 +97,8 @@ def upload_single():
                 진단상품여부    = EXCLUDED.진단상품여부,
                 적용시작일자    = EXCLUDED.적용시작일자,
                 적용종료일자    = EXCLUDED.적용종료일자,
+                판매시작일자    = EXCLUDED.판매시작일자,
+                판매종료일자    = EXCLUDED.판매종료일자,
                 파일명          = EXCLUDED.파일명,
                 업로드일시      = NOW()
         """, (
@@ -104,7 +107,8 @@ def upload_single():
             product["보험종목코드"], product["상품형태구분코드"],
             product["자동갱신가능여부"], product["상품최대가입연령"],
             product["보험기간기본값"], product["진단상품여부"],
-            product["적용시작일자"], product["적용종료일자"], fname
+            product["적용시작일자"], product["적용종료일자"],
+            product["판매시작일자"], product["판매종료일자"], fname
         ))
 
         cur.execute("DELETE FROM coverages WHERE 상품코드 = %s", (product_code,))

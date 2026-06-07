@@ -21,9 +21,7 @@
     <tr>
       <th>상품코드</th>
       <th>상품명</th>
-      <th>종목</th>
-      <th>갱신</th>
-      <th>적용기간</th>
+      <th>상품판매기간</th>
       <th>담보 수</th>
       <th></th>
     </tr>
@@ -33,9 +31,15 @@
     <tr>
       <td><code>{{ item.상품코드 }}</code></td>
       <td>{{ item.상품판매명 }}</td>
-      <td>{{ item.보험종목코드 }}</td>
-      <td>{{ '갱신' if item.자동갱신가능여부 == 'Y' else '비갱신' }}</td>
-      <td>{{ item.적용시작일자 }} ~ {{ item.적용종료일자 }}</td>
+      <td>
+        {% if item.판매시작일자 and item.판매종료일자 %}
+          {{ item.판매시작일자[:4] }}.{{ item.판매시작일자[4:6] }}.{{ item.판매시작일자[6:] }}
+          ~
+          {{ item.판매종료일자[:4] }}.{{ item.판매종료일자[4:6] }}.{{ item.판매종료일자[6:] }}
+        {% else %}
+          —
+        {% endif %}
+      </td>
       <td>{{ item.담보수 if item.담보수 is defined else '' }}</td>
       <td><a href="/products/{{ item.상품코드 }}" class="btn btn-sm btn-orange">상세 →</a></td>
     </tr>

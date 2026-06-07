@@ -83,13 +83,13 @@ def _get(row, col_map, name):
 
 
 def parse_product(wb):
-    """상품 시트 → dict"""
+    """상품 시트 + 상품판매기간 시트 → dict"""
     col_map, rows = _read_sheet(wb, '상품')
     if not rows:
         return None
 
     row = rows[0]
-    return {
+    product = {
         '상품코드':         _get(row, col_map, '상품코드'),
         '상품판매명':       _get(row, col_map, '상품판매명'),
         '상품인가명':       _get(row, col_map, '상품인가명'),
@@ -102,7 +102,23 @@ def parse_product(wb):
         '진단상품여부':     _get(row, col_map, '진단상품여부'),
         '적용시작일자':     _get(row, col_map, '적용시작일자'),
         '적용종료일자':     _get(row, col_map, '적용종료일자'),
+        '판매시작일자':     None,
+        '판매종료일자':     None,
     }
+
+    # 상품판매기간 시트에서 판매 기간 가져오기 (여러 행 중 최소 시작일 / 최대 종료일)
+    sal_map, sal_rows = _read_sheet(wb, '상품판매기간')
+    if sal_rows:
+        starts = [_get(r, sal_map, '판매시작일자') for r in sal_rows]
+        ends   = [_get(r, sal_map, '판매종료일자') for r in sal_rows]
+        starts = [s for s in starts if s]
+        ends   = [e for e in ends   if e]
+        if starts:
+            product['판매시작일자'] = min(starts)
+        if ends:
+            product['판매종료일자'] = max(ends)
+
+    return product
 
 
 def parse_coverages(wb):

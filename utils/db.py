@@ -27,6 +27,8 @@ def init_db():
             진단상품여부    VARCHAR(1),
             적용시작일자    VARCHAR(8),
             적용종료일자    VARCHAR(8),
+            판매시작일자    VARCHAR(8),
+            판매종료일자    VARCHAR(8),
             파일명          TEXT,
             업로드일시      TIMESTAMP DEFAULT NOW()
         )
@@ -62,6 +64,13 @@ def init_db():
             오류메시지  TEXT
         )
     """)
+    # 기존 DB에 컬럼이 없을 경우 추가 (마이그레이션)
+    for col in ['판매시작일자 VARCHAR(8)', '판매종료일자 VARCHAR(8)']:
+        col_name = col.split()[0]
+        try:
+            cur.execute(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {col}")
+        except Exception:
+            pass
     conn.commit()
     cur.close()
     conn.close()
@@ -121,13 +130,13 @@ def get_all_products():
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute("""
-        SELECT p.상품코드, p.상품판매명, p.보험종목코드,
-               p.자동갱신가능여부, p.적용시작일자, p.적용종료일자,
+        SELECT p.상품코드, p.상품판매명,
+               p.판매시작일자, p.판매종료일자,
                COUNT(c.id) AS 담보수
           FROM products p
           LEFT JOIN coverages c ON p.상품코드 = c.상품코드
-         GROUP BY p.상품코드, p.상품판매명, p.보험종목코드,
-                  p.자동갱신가능여부, p.적용시작일자, p.적용종료일자
+         GROUP BY p.상품코드, p.상품판매명,
+                  p.판매시작일자, p.판매종료일자
          ORDER BY p.상품코드
     """)
     rows = cur.fetchall()
