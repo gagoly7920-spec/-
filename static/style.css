@@ -89,6 +89,8 @@ a.card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.1
 .btn-secondary{ background: #e2e8f0; color: #333; }
 .btn-secondary:hover{ background: #cbd5e0; }
 .btn-sm { padding: .3rem .75rem; font-size: .8rem; }
+.btn-orange { background: #e8630a; color: #fff; font-weight: 700; }
+.btn-orange:hover { background: #c9530a; }
 .btn.active { background: #1a3a6b; color: #fff; }
 
 /* ── Table ────────────────────────────────────────────── */

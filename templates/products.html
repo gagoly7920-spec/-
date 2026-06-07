@@ -37,7 +37,7 @@
       <td>{{ '갱신' if item.자동갱신가능여부 == 'Y' else '비갱신' }}</td>
       <td>{{ item.적용시작일자 }} ~ {{ item.적용종료일자 }}</td>
       <td>{{ item.담보수 if item.담보수 is defined else '' }}</td>
-      <td><a href="/products/{{ item.상품코드 }}" class="btn btn-sm">상세</a></td>
+      <td><a href="/products/{{ item.상품코드 }}" class="btn btn-sm btn-orange">상세 →</a></td>
     </tr>
     {% else %}
     <tr><td colspan="7" class="text-center">
