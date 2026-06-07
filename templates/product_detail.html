@@ -13,7 +13,6 @@
   <dl class="info-grid">
     <dt>상품코드</dt>     <dd><code>{{ product.상품코드 }}</code></dd>
     <dt>인가명</dt>       <dd>{{ product.상품인가명 or '—' }}</dd>
-    <dt>단축명</dt>       <dd>{{ product.상품단축명 or '—' }}</dd>
   </dl>
   <div style="margin-top:1rem; display:flex; gap:0.75rem">
     <a href="/compare?a={{ product.상품코드 }}" class="btn btn-secondary">타 상품과 담보 비교</a>
@@ -37,7 +36,8 @@
         <th>구분</th>
         <th>담보코드</th>
         <th>담보명</th>
-        <th>단축명</th>
+        <th>독립특약여부</th>
+        <th>독립특약상품코드</th>
         <th>가입대상</th>
         <th>가입금액</th>
         <th>적용기간</th>
@@ -55,13 +55,14 @@
         </td>
         <td><code>{{ cov.담보코드 }}</code></td>
         <td>{{ cov.담보대표명 or cov.담보한글명 }}</td>
-        <td>{{ cov.담보한글단축명 or '—' }}</td>
+        <td>{{ '○' if cov.독립특약여부 == '1' else '—' }}</td>
+        <td>{{ cov.독립특약상품코드 or '—' }}</td>
         <td>{{ '○' if cov.가입대상여부 == 'Y' else '—' }}</td>
         <td>{{ '필요' if cov.가입금액필요여부 == 'Y' else '—' }}</td>
         <td>{{ cov.적용시작일자 }}~{{ cov.적용종료일자 }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="text-center">담보 정보가 없습니다</td></tr>
+      <tr><td colspan="9" class="text-center">담보 정보가 없습니다</td></tr>
       {% endfor %}
     </tbody>
   </table>

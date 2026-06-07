@@ -45,7 +45,9 @@ def init_db():
             가입대상여부    VARCHAR(1),
             가입금액필요여부 VARCHAR(1),
             적용시작일자    VARCHAR(8),
-            적용종료일자    VARCHAR(8)
+            적용종료일자    VARCHAR(8),
+            독립특약여부    VARCHAR(1),
+            독립특약상품코드 VARCHAR(10)
         )
     """)
     cur.execute("""
@@ -66,9 +68,13 @@ def init_db():
     """)
     # 기존 DB에 컬럼이 없을 경우 추가 (마이그레이션)
     for col in ['판매시작일자 VARCHAR(8)', '판매종료일자 VARCHAR(8)']:
-        col_name = col.split()[0]
         try:
             cur.execute(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {col}")
+        except Exception:
+            pass
+    for col in ['독립특약여부 VARCHAR(1)', '독립특약상품코드 VARCHAR(10)']:
+        try:
+            cur.execute(f"ALTER TABLE coverages ADD COLUMN IF NOT EXISTS {col}")
         except Exception:
             pass
     conn.commit()

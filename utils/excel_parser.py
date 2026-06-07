@@ -140,6 +140,8 @@ def parse_coverages(wb):
             '가입금액필요여부':     _get(row, col_map, '가입금액필요여부'),
             '적용시작일자':         _get(row, col_map, '적용시작일자'),
             '적용종료일자':         _get(row, col_map, '적용종료일자'),
+            '독립특약여부':         _get(row, col_map, '독립특약여부'),
+            '독립특약상품코드':     _get(row, col_map, '독립특약상품코드'),
         })
     return results
 
