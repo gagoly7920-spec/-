@@ -11,6 +11,7 @@ from utils.excel_parser import parse_excel_file
 from utils.gemini_chat import ask, build_context
 
 import psycopg2
+import psycopg2.extras
 
 load_dotenv()
 
@@ -116,22 +117,22 @@ def upload():
                 product["적용시작일자"], product["적용종료일자"], fname
             ))
 
-            # 기존 담보 삭제 후 재적재
+            # 기존 담보 삭제 후 재적재 (executemany로 한 번에 INSERT)
             cur.execute("DELETE FROM coverages WHERE 상품코드 = %s", (product_code,))
-            for cov in coverages:
-                cur.execute("""
+            if coverages:
+                psycopg2.extras.execute_values(cur, """
                     INSERT INTO coverages
                         (상품코드, 담보코드, 담보대표명, 담보한글명, 담보한글단축명,
                          담보기본특약구분코드, 가입대상여부, 가입금액필요여부,
                          적용시작일자, 적용종료일자)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (
+                    VALUES %s
+                """, [(
                     product_code,
                     cov["담보코드"], cov["담보대표명"], cov["담보한글명"],
                     cov["담보한글단축명"], cov["담보기본특약구분코드"],
                     cov["가입대상여부"], cov["가입금액필요여부"],
                     cov["적용시작일자"], cov["적용종료일자"]
-                ))
+                ) for cov in coverages], page_size=500)
 
             cur.execute("""
                 INSERT INTO file_upload_log (파일명, 상품코드, 상품판매명, 담보수, 성공여부)
