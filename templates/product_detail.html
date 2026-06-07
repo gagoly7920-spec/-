@@ -14,13 +14,6 @@
     <dt>상품코드</dt>     <dd><code>{{ product.상품코드 }}</code></dd>
     <dt>인가명</dt>       <dd>{{ product.상품인가명 or '—' }}</dd>
     <dt>단축명</dt>       <dd>{{ product.상품단축명 or '—' }}</dd>
-    <dt>보험종목</dt>     <dd>{{ product.보험종목코드 }}</dd>
-    <dt>상품형태</dt>     <dd>{{ '복합' if product.상품형태구분코드 == '02' else '단일' }}</dd>
-    <dt>자동갱신</dt>     <dd>{{ '가능' if product.자동갱신가능여부 == 'Y' else '불가' }}</dd>
-    <dt>최대 가입 연령</dt><dd>{{ product.상품최대가입연령 or '—' }}세</dd>
-    <dt>기본 보험기간</dt> <dd>{{ product.보험기간기본값 or '—' }}</dd>
-    <dt>진단 상품</dt>    <dd>{{ '예' if product.진단상품여부 == 'Y' else '아니오' }}</dd>
-    <dt>적용 기간</dt>    <dd>{{ product.적용시작일자 }} ~ {{ product.적용종료일자 }}</dd>
   </dl>
   <div style="margin-top:1rem; display:flex; gap:0.75rem">
     <a href="/compare?a={{ product.상품코드 }}" class="btn btn-secondary">타 상품과 담보 비교</a>
