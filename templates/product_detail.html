@@ -22,11 +22,17 @@
 <!-- 담보 목록 -->
 <div class="card" style="margin-top:1.5rem">
   <div style="display:flex; justify-content:space-between; align-items:center">
-    <h3>담보 목록 ({{ coverages|length }}개)</h3>
-    <div class="filter-btns">
-      <button class="btn btn-sm active" onclick="filterCov('all', this)">전체</button>
-      <button class="btn btn-sm" onclick="filterCov('01', this)">기본담보</button>
-      <button class="btn btn-sm" onclick="filterCov('02', this)">특약</button>
+    <div>
+      <h3 style="margin:0">담보 목록 ({{ coverages|length }}개)</h3>
+      <div class="filter-match-count" id="filterCount"></div>
+    </div>
+    <div style="display:flex; gap:.5rem; align-items:center">
+      <div class="filter-btns">
+        <button class="btn btn-sm active" onclick="filterCov('all', this)">전체</button>
+        <button class="btn btn-sm" onclick="filterCov('01', this)">기본담보</button>
+        <button class="btn btn-sm" onclick="filterCov('02', this)">특약</button>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="resetFilters()">필터 초기화</button>
     </div>
   </div>
 
@@ -41,6 +47,40 @@
         <th>가입대상</th>
         <th>가입금액</th>
         <th>적용기간</th>
+      </tr>
+      <tr class="filter-row">
+        <td>
+          <select class="col-filter" data-col="0" onchange="applyFilters()">
+            <option value="">전체</option>
+            <option value="기본">기본</option>
+            <option value="특약">특약</option>
+          </select>
+        </td>
+        <td><input class="col-filter" data-col="1" type="text" placeholder="검색" oninput="applyFilters()"></td>
+        <td><input class="col-filter" data-col="2" type="text" placeholder="검색" oninput="applyFilters()"></td>
+        <td>
+          <select class="col-filter" data-col="3" onchange="applyFilters()">
+            <option value="">전체</option>
+            <option value="○">○ 해당</option>
+            <option value="—">— 해당없음</option>
+          </select>
+        </td>
+        <td><input class="col-filter" data-col="4" type="text" placeholder="검색" oninput="applyFilters()"></td>
+        <td>
+          <select class="col-filter" data-col="5" onchange="applyFilters()">
+            <option value="">전체</option>
+            <option value="○">○</option>
+            <option value="—">—</option>
+          </select>
+        </td>
+        <td>
+          <select class="col-filter" data-col="6" onchange="applyFilters()">
+            <option value="">전체</option>
+            <option value="필요">필요</option>
+            <option value="—">—</option>
+          </select>
+        </td>
+        <td><input class="col-filter" data-col="7" type="text" placeholder="검색" oninput="applyFilters()"></td>
       </tr>
     </thead>
     <tbody>
@@ -68,13 +108,66 @@
   </table>
 </div>
 
+<style>
+.filter-row td { padding: .3rem .5rem; background: #f8faff; }
+.filter-row input, .filter-row select {
+  width: 100%;
+  padding: .25rem .4rem;
+  font-size: .78rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  background: #fff;
+}
+.filter-row input:focus, .filter-row select:focus {
+  outline: none;
+  border-color: #1a3a6b;
+}
+.filter-match-count {
+  font-size: .82rem;
+  color: #888;
+  margin-top: .4rem;
+}
+</style>
+
 <script>
 function filterCov(type, btn) {
   document.querySelectorAll('.filter-btns .btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.querySelectorAll('#covTable tbody tr').forEach(tr => {
-    tr.style.display = (type === 'all' || tr.dataset.type === type) ? '' : 'none';
+  // 구분 select 필터도 동기화
+  const sel = document.querySelector('.col-filter[data-col="0"]');
+  sel.value = type === 'all' ? '' : (type === '01' ? '기본' : '특약');
+  applyFilters();
+}
+
+function resetFilters() {
+  document.querySelectorAll('.col-filter').forEach(el => el.value = '');
+  document.querySelectorAll('.filter-btns .btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.filter-btns .btn').classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  const filters = Array.from(document.querySelectorAll('.col-filter')).map(el => ({
+    col: parseInt(el.dataset.col),
+    val: el.value.trim().toLowerCase()
+  }));
+
+  const rows = document.querySelectorAll('#covTable tbody tr');
+  let visible = 0;
+
+  rows.forEach(tr => {
+    const cells = tr.querySelectorAll('td');
+    const match = filters.every(f => {
+      if (!f.val) return true;
+      const cellText = (cells[f.col]?.textContent || '').trim().toLowerCase();
+      return cellText.includes(f.val);
+    });
+    tr.style.display = match ? '' : 'none';
+    if (match) visible++;
   });
+
+  document.getElementById('filterCount').textContent =
+    `${visible} / ${rows.length}건 표시 중`;
 }
 </script>
 {% endblock %}
